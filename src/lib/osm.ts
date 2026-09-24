@@ -23,7 +23,14 @@ export interface GeocodeResult {
   locationLabel?: string;
 }
 
-export class OsmError extends Error {}
+export class OsmError extends Error {
+  /** True when the service failed (busy, unreachable), not when it answered "no". */
+  transient: boolean;
+  constructor(message: string, transient = false) {
+    super(message);
+    this.transient = transient;
+  }
+}
 
 // US state full-name -> USPS abbreviation, used to shorten Nominatim's
 // address.state (which is typically the full name for US results) for the
@@ -47,33 +54,32 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * The free public Nominatim/Overpass instances occasionally return a
- * transient 502/503/504 under load. Retry once after a short delay before
- * giving up, since a bare "try again" error for a self-healing blip is a
- * worse experience than a silent retry.
+ * The free public Nominatim/Overpass instances regularly return 429/502/503/
+ * 504 under load (seen twice in one test session). Retry twice with a
+ * growing delay before giving up; the Search screen then falls back to saved
+ * results (searchCache.ts) when it has them.
  */
+const RETRY_DELAYS_MS = [800, 2000];
+
 async function fetchWithRetry(url: string, init: RequestInit, unreachableMessage: string): Promise<Response> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; ; attempt++) {
+    const canRetry = attempt < RETRY_DELAYS_MS.length;
     let response: Response;
     try {
       response = await fetch(url, init);
     } catch {
-      if (attempt === 0) {
-        await delay(800);
+      if (canRetry) {
+        await delay(RETRY_DELAYS_MS[attempt]);
         continue;
       }
-      throw new OsmError(unreachableMessage);
+      throw new OsmError(unreachableMessage, true);
     }
-
-    if (response.status >= 500 && attempt === 0) {
-      await delay(800);
+    if ((response.status >= 500 || response.status === 429) && canRetry) {
+      await delay(RETRY_DELAYS_MS[attempt]);
       continue;
     }
-
     return response;
   }
-  // Unreachable, but keeps TypeScript happy.
-  throw new OsmError(unreachableMessage);
 }
 
 /** Geocode a US zip code to a lat/lon via Nominatim. */
@@ -86,7 +92,7 @@ export async function geocodeZip(zip: string): Promise<GeocodeResult> {
   );
 
   if (!response.ok) {
-    throw new OsmError('Location lookup failed. Please try again.');
+    throw new OsmError('Location lookup failed. Please try again.', true);
   }
 
   const data = await response.json();
@@ -233,7 +239,7 @@ out center;`;
   );
 
   if (!response.ok) {
-    throw new OsmError('Restaurant search failed. Please try again.');
+    throw new OsmError('Restaurant search failed. Please try again.', true);
   }
 
   const data = await response.json();
@@ -241,7 +247,7 @@ out center;`;
   // a "runtime error" remark -- without this check it looks like "no
   // restaurants here" instead of a failed search the diner can retry.
   if (typeof data?.remark === 'string' && /runtime error/i.test(data.remark)) {
-    throw new OsmError('The restaurant search timed out. Please try again.');
+    throw new OsmError('The restaurant search timed out. Please try again.', true);
   }
   const elements: any[] = Array.isArray(data?.elements) ? data.elements : [];
 

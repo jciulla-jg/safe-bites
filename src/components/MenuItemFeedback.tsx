@@ -162,7 +162,7 @@ export function MenuItemFeedback({
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.toggleRow} onPress={() => setExpanded((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded }}>
+      <TouchableOpacity style={styles.toggleRow} onPress={() => setExpanded((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded }} aria-expanded={expanded}>
         <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.textSecondary} />
         <Text style={styles.toggleText}>
           Community feedback{visibleEntries.length > 0 ? ` (${visibleEntries.length})` : ''}
@@ -205,10 +205,10 @@ export function MenuItemFeedback({
                           editable={!busy}
                         />
                         <View style={styles.rowActions}>
-                          <TouchableOpacity onPress={() => setEditingId(null)} disabled={busy}>
+                          <TouchableOpacity accessibilityRole="button" onPress={() => setEditingId(null)} disabled={busy}>
                             <Text style={styles.secondaryAction}>Cancel</Text>
                           </TouchableOpacity>
-                          <TouchableOpacity onPress={() => saveEdit(entry)} disabled={busy}>
+                          <TouchableOpacity accessibilityRole="button" onPress={() => saveEdit(entry)} disabled={busy}>
                             {busy ? (
                               <ActivityIndicator size="small" color={colors.brand} />
                             ) : (
@@ -229,10 +229,10 @@ export function MenuItemFeedback({
                           (confirmingDeleteId === entry.id ? (
                             <View style={styles.rowActions}>
                               <Text style={styles.confirmText}>Delete this feedback?</Text>
-                              <TouchableOpacity onPress={() => setConfirmingDeleteId(null)} disabled={busy}>
+                              <TouchableOpacity accessibilityRole="button" onPress={() => setConfirmingDeleteId(null)} disabled={busy}>
                                 <Text style={styles.secondaryAction}>Keep</Text>
                               </TouchableOpacity>
-                              <TouchableOpacity onPress={() => confirmDelete(entry)} disabled={busy}>
+                              <TouchableOpacity accessibilityRole="button" onPress={() => confirmDelete(entry)} disabled={busy}>
                                 {busy ? (
                                   <ActivityIndicator size="small" color={colors.danger} />
                                 ) : (
@@ -242,10 +242,10 @@ export function MenuItemFeedback({
                             </View>
                           ) : (
                             <View style={styles.rowActions}>
-                              <TouchableOpacity onPress={() => startEdit(entry)}>
+                              <TouchableOpacity accessibilityRole="button" onPress={() => startEdit(entry)}>
                                 <Text style={styles.primaryAction}>Edit</Text>
                               </TouchableOpacity>
-                              <TouchableOpacity
+                              <TouchableOpacity accessibilityRole="button"
                                 onPress={() => {
                                   setConfirmingDeleteId(entry.id);
                                   setEditingId(null);
@@ -260,10 +260,10 @@ export function MenuItemFeedback({
                           (confirmingReportId === entry.id ? (
                             <View style={styles.rowActions}>
                               <Text style={styles.confirmText}>Report as wrong or inappropriate?</Text>
-                              <TouchableOpacity onPress={() => setConfirmingReportId(null)} disabled={busy}>
+                              <TouchableOpacity accessibilityRole="button" onPress={() => setConfirmingReportId(null)} disabled={busy}>
                                 <Text style={styles.secondaryAction}>Cancel</Text>
                               </TouchableOpacity>
-                              <TouchableOpacity onPress={() => confirmReport(entry)} disabled={busy}>
+                              <TouchableOpacity accessibilityRole="button" onPress={() => confirmReport(entry)} disabled={busy}>
                                 {busy ? (
                                   <ActivityIndicator size="small" color={colors.danger} />
                                 ) : (
@@ -293,8 +293,8 @@ export function MenuItemFeedback({
 
           {justSubmitted ? (
             <View>
-              <Text style={styles.thanksText}>Thanks -- your feedback was added above.</Text>
-              <TouchableOpacity onPress={() => setJustSubmitted(false)}>
+              <Text style={styles.thanksText}>Thanks — your feedback was added above.</Text>
+              <TouchableOpacity accessibilityRole="button" onPress={() => setJustSubmitted(false)}>
                 <Text style={styles.primaryAction}>Add more feedback</Text>
               </TouchableOpacity>
             </View>
@@ -307,7 +307,7 @@ export function MenuItemFeedback({
                 {ALLERGENS.map((allergen) => (
                   <TouchableOpacity
                     key={allergen.code}
-                    style={[styles.chip, allergenCode === allergen.code && styles.chipSelected]} accessibilityRole="button" accessibilityState={{ selected: allergenCode === allergen.code }}
+                    style={[styles.chip, allergenCode === allergen.code && styles.chipSelected]} accessibilityRole="button" accessibilityState={{ selected: allergenCode === allergen.code }} aria-selected={allergenCode === allergen.code}
                     onPress={() => setAllergenCode(allergen.code)}
                   >
                     <Text style={[styles.chipText, allergenCode === allergen.code && styles.chipTextSelected]}>
@@ -336,7 +336,7 @@ export function MenuItemFeedback({
 
               {error && <Text style={styles.errorText}>{error}</Text>}
 
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
                 onPress={handleSubmit}
                 disabled={submitting}

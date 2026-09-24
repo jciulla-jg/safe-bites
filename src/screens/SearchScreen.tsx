@@ -19,6 +19,8 @@ import type { SearchStackParamList } from '../navigation/types';
 import {
   distanceMiles,
   geocodeZip,
+  OsmError,
+  type GeocodeResult,
   milesToMeters,
   nameMatches,
   searchNearbyRestaurants,
@@ -43,6 +45,13 @@ import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import { fetchCommunityMenuItemsForRestaurants, type CommunityMenuItem } from '../lib/communityMenu';
 import { loadReportedIds } from '../lib/reports';
 import { itemCountLabel } from '../lib/itemCountLabel';
+import {
+  loadCachedGeocode,
+  loadCachedResults,
+  resultsKey,
+  saveCachedGeocode,
+  saveCachedResults,
+} from '../lib/searchCache';
 import { colors } from '../navigation/theme';
 
 // Above this viewport width (web only -- native screens are always
@@ -120,6 +129,8 @@ export function SearchScreen({ navigation }: Props) {
   // Visible by default -- a diner should see the full picture, including
   // what hasn't been reviewed yet, unless they choose to narrow it down.
   const [showNoData, setShowNoData] = useState(true);
+  // Only restaurants with diner-added menu items (unverified), e.g. to help fill gaps.
+  const [onlyCommunity, setOnlyCommunity] = useState(false);
   // Multi-select: empty array means "all cuisines", matching the same
   // "no filter" convention as the other controls.
   const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
@@ -138,6 +149,8 @@ export function SearchScreen({ navigation }: Props) {
   const [results, setResults] = useState<ResultRow[] | null>(null);
   const [locationLabel, setLocationLabel] = useState<string | null>(null);
   const [searchCenter, setSearchCenter] = useState<{ lat: number; lon: number } | null>(null);
+  // Set when the live map search failed and saved results are shown instead.
+  const [savedResultsAt, setSavedResultsAt] = useState<number | null>(null);
   const [recents, setRecents] = useState<RecentRestaurant[]>([]);
   const [searchMode, setSearchMode] = useState<SearchMode>('nearby');
   const [nameQuery, setNameQuery] = useState('');
@@ -199,10 +212,33 @@ export function SearchScreen({ navigation }: Props) {
 
   /** Core search logic shared by the Search button and pull-to-refresh. */
   async function performSearch(trimmedZip: string, name: string | null): Promise<void> {
-    const { lat, lon, locationLabel: geocodedLabel } = await geocodeZip(trimmedZip);
+    // Live lookups first; if a free OSM service is down or busy, fall back to
+    // this device's saved results for the same zip and radius.
+    const isTransient = (err: unknown) => err instanceof OsmError && err.transient;
+    let geo: GeocodeResult;
+    try {
+      geo = await geocodeZip(trimmedZip);
+      saveCachedGeocode(trimmedZip, geo).catch(() => {});
+    } catch (err) {
+      const cachedGeo = isTransient(err) ? await loadCachedGeocode(trimmedZip) : null;
+      if (!cachedGeo) throw err;
+      geo = cachedGeo;
+    }
+    const { lat, lon, locationLabel: geocodedLabel } = geo;
     setLocationLabel(geocodedLabel ?? null);
     setSearchCenter({ lat, lon });
-    const found = await searchNearbyRestaurants(lat, lon, milesToMeters(radiusMiles));
+    const cacheKey = resultsKey(trimmedZip, radiusMiles);
+    let found: OsmRestaurant[];
+    try {
+      found = await searchNearbyRestaurants(lat, lon, milesToMeters(radiusMiles));
+      saveCachedResults(cacheKey, found).catch(() => {});
+      setSavedResultsAt(null);
+    } catch (err) {
+      const cached = isTransient(err) ? await loadCachedResults(cacheKey) : null;
+      if (!cached) throw err;
+      found = cached.restaurants;
+      setSavedResultsAt(cached.savedAt);
+    }
     // Name matching happens before the per-restaurant safety lookups below,
     // so a name search only queries Supabase for the matches.
     const nearby = name ? found.filter((restaurant) => nameMatches(restaurant.name, name)) : found;
@@ -251,6 +287,10 @@ export function SearchScreen({ navigation }: Props) {
     }
     if (!trimmedZip) {
       setError(searchMode === 'name' ? 'Enter a zip code to search near.' : 'Enter a zip code to search.');
+      return;
+    }
+    if (!/^\d{5}$/.test(trimmedZip)) {
+      setError('Enter a 5-digit US zip code, like 12305.');
       return;
     }
 
@@ -331,6 +371,7 @@ export function SearchScreen({ navigation }: Props) {
     if (!matchesName(row, trimmedNameFilter)) return false;
     if (!matchesCuisine(row, selectedCuisines)) return false;
     if (!matchesRating(row, minRating)) return false;
+    if (onlyCommunity && !(row.communityItems && row.communityItems.length > 0)) return false;
 
     // "No data yet" rows are governed solely by the showNoData toggle --
     // they're neither safe nor unsafe, so the Safe/Unsafe/All filter below
@@ -390,6 +431,7 @@ export function SearchScreen({ navigation }: Props) {
   const activeFilterCount =
     (filter !== 'all' ? 1 : 0) +
     (!showNoData ? 1 : 0) +
+    (onlyCommunity ? 1 : 0) +
     (minRating > 0 ? 1 : 0) +
     (selectedCuisines.length > 0 ? 1 : 0) +
     (overrideActive ? 1 : 0);
@@ -402,13 +444,61 @@ export function SearchScreen({ navigation }: Props) {
   // container's painted background. Folding it all into the FlatList's own
   // header makes the FlatList's scroll own the whole screen instead, so
   // arbitrarily tall header content is always reachable.
+  // Shown on the empty state, and after a failed search as a way back in.
+  const recentsBlock =
+    recents.length > 0 ? (
+      <View style={styles.recentsSection}>
+        <View style={styles.recentsHeaderRow}>
+          <Text style={styles.sectionLabel}>Recently viewed</Text>
+          <TouchableOpacity
+            onPress={() => {
+              setRecents([]);
+              clearRecentlyViewed().catch(() => {});
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Clear recently viewed restaurants"
+          >
+            <Text style={styles.recentsClear}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+        {recents.map((recent) => (
+          <TouchableOpacity
+            key={recent.osmId}
+            style={styles.recentRow} accessibilityRole="button" accessibilityLabel={`Open ${recent.restaurantName}`}
+            onPress={() =>
+              navigation.navigate('RestaurantDetail', {
+                osmId: recent.osmId,
+                restaurantName: recent.restaurantName,
+                lat: recent.lat,
+                lon: recent.lon,
+                phone: recent.phone,
+                address: recent.address,
+                cuisine: recent.cuisine,
+                details: recent.details,
+              })
+            }
+          >
+            <View style={styles.cuisineAvatarSmall}>
+              <Text style={styles.cuisineAvatarEmojiSmall}>
+                {getCuisineEmoji(recent.cuisine)}
+              </Text>
+            </View>
+            <Text style={styles.recentRowText} numberOfLines={1}>
+              {recent.restaurantName}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+        ))}
+      </View>
+    ) : null;
+
   const listHeader = (
     <>
       <View style={styles.modeToggle}>
         {(['nearby', 'name'] as SearchMode[]).map((mode) => (
           <TouchableOpacity
             key={mode}
-            style={[styles.modeOption, searchMode === mode && styles.modeOptionSelected]} accessibilityRole="button" accessibilityState={{ selected: searchMode === mode }}
+            style={[styles.modeOption, searchMode === mode && styles.modeOptionSelected]} accessibilityRole="button" accessibilityState={{ selected: searchMode === mode }} aria-selected={searchMode === mode}
             onPress={() => {
               setSearchMode(mode);
               setError(null);
@@ -465,7 +555,7 @@ export function SearchScreen({ navigation }: Props) {
       )}
 
       <TouchableOpacity
-        style={styles.filtersHeaderRow} accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }} accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
+        style={styles.filtersHeaderRow} accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }} aria-expanded={filtersExpanded} accessibilityLabel={`Filters${activeFilterCount > 0 ? `, ${activeFilterCount} active` : ""}`}
         onPress={() => setFiltersExpanded((v) => !v)}
       >
         <View style={styles.filtersHeaderLeft}>
@@ -503,8 +593,8 @@ export function SearchScreen({ navigation }: Props) {
           </FilterRow>
           {overrideActive ? (
             <View style={styles.filterHintRow}>
-              <Text style={styles.filterHint}>Checking these for this search only -- your profile is unchanged.</Text>
-              <TouchableOpacity onPress={() => setCheckAllergens(null)}>
+              <Text style={styles.filterHint}>Checking these for this search only — your profile is unchanged.</Text>
+              <TouchableOpacity accessibilityRole="button" onPress={() => setCheckAllergens(null)}>
                 <Text style={styles.filterHintAction}>Reset to profile</Text>
               </TouchableOpacity>
             </View>
@@ -525,6 +615,12 @@ export function SearchScreen({ navigation }: Props) {
               icon={showNoData ? 'checkbox' : 'square-outline'}
               selected={false}
               onPress={() => setShowNoData((v) => !v)}
+            />
+            <Chip
+              label="Has community items"
+              icon={onlyCommunity ? 'checkbox' : 'square-outline'}
+              selected={false}
+              onPress={() => setOnlyCommunity((v) => !v)}
             />
           </FilterRow>
 
@@ -570,51 +666,7 @@ export function SearchScreen({ navigation }: Props) {
             </Text>
           </View>
 
-          {recents.length > 0 && (
-            <View style={styles.recentsSection}>
-              <View style={styles.recentsHeaderRow}>
-                <Text style={styles.sectionLabel}>Recently viewed</Text>
-                <TouchableOpacity
-                  onPress={() => {
-                    setRecents([]);
-                    clearRecentlyViewed().catch(() => {});
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear recently viewed restaurants"
-                >
-                  <Text style={styles.recentsClear}>Clear</Text>
-                </TouchableOpacity>
-              </View>
-              {recents.map((recent) => (
-                <TouchableOpacity
-                  key={recent.osmId}
-                  style={styles.recentRow} accessibilityRole="button" accessibilityLabel={`Open ${recent.restaurantName}`}
-                  onPress={() =>
-                    navigation.navigate('RestaurantDetail', {
-                      osmId: recent.osmId,
-                      restaurantName: recent.restaurantName,
-                      lat: recent.lat,
-                      lon: recent.lon,
-                      phone: recent.phone,
-                      address: recent.address,
-                      cuisine: recent.cuisine,
-                      details: recent.details,
-                    })
-                  }
-                >
-                  <View style={styles.cuisineAvatarSmall}>
-                    <Text style={styles.cuisineAvatarEmojiSmall}>
-                      {getCuisineEmoji(recent.cuisine)}
-                    </Text>
-                  </View>
-                  <Text style={styles.recentRowText} numberOfLines={1}>
-                    {recent.restaurantName}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          {recentsBlock}
         </>
       )}
 
@@ -626,12 +678,26 @@ export function SearchScreen({ navigation }: Props) {
       )}
 
       {!loading && error && (
-        <View style={styles.centeredBlock}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={handleSearch} accessibilityRole="button">
-            <Ionicons name="refresh" size={15} color="#fff" />
-            <Text style={styles.retryButtonText}>Retry</Text>
-          </TouchableOpacity>
+        <>
+          <View style={styles.centeredBlock}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={handleSearch} accessibilityRole="button">
+              <Ionicons name="refresh" size={15} color="#fff" />
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+          {recentsBlock}
+        </>
+      )}
+
+      {!loading && !error && results !== null && savedResultsAt !== null && (
+        <View style={styles.savedNotice} accessibilityRole="alert">
+          <Ionicons name="cloud-offline-outline" size={15} color={colors.brandDark} />
+          <Text style={styles.savedNoticeText}>
+            The live map search is busy right now, so these are your saved results from{' '}
+            {new Date(savedResultsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            . Safety data is current. Pull down or tap Search to try again.
+          </Text>
         </View>
       )}
 
@@ -692,16 +758,16 @@ export function SearchScreen({ navigation }: Props) {
             animationType="fade"
             onRequestClose={() => setCuisinePickerOpen(false)}
           >
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               style={styles.modalOverlay}
               activeOpacity={1}
               onPress={() => setCuisinePickerOpen(false)}
             >
-              <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+              <TouchableOpacity accessibilityRole="button" activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
                 <View style={styles.modalHeaderRow}>
                   <Text style={styles.modalTitle}>Cuisine</Text>
                   {selectedCuisines.length > 0 && (
-                    <TouchableOpacity onPress={() => setSelectedCuisines([])}>
+                    <TouchableOpacity accessibilityRole="button" onPress={() => setSelectedCuisines([])}>
                       <Text style={styles.modalClearText}>Clear</Text>
                     </TouchableOpacity>
                   )}
@@ -712,7 +778,7 @@ export function SearchScreen({ navigation }: Props) {
                     return (
                       <TouchableOpacity
                         key={cuisine}
-                        style={styles.modalRow} accessibilityRole="checkbox" accessibilityState={{ checked: selectedCuisines.includes(cuisine) }}
+                        style={styles.modalRow} accessibilityRole="checkbox" accessibilityState={{ checked: selectedCuisines.includes(cuisine) }} aria-checked={selectedCuisines.includes(cuisine)}
                         onPress={() => toggleCuisine(cuisine)}
                       >
                         <Ionicons
@@ -725,7 +791,7 @@ export function SearchScreen({ navigation }: Props) {
                     );
                   })}
                 </ScrollView>
-                <TouchableOpacity
+                <TouchableOpacity accessibilityRole="button"
                   style={styles.modalDoneButton}
                   onPress={() => setCuisinePickerOpen(false)}
                 >
@@ -875,7 +941,7 @@ function Chip({
 }) {
   const iconEl = icon && <Ionicons name={icon} size={14} color={selected ? '#fff' : colors.brand} />;
   return (
-    <TouchableOpacity style={[styles.chip, selected && styles.chipSelected]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }}>
+    <TouchableOpacity style={[styles.chip, selected && styles.chipSelected]} onPress={onPress} accessibilityRole="button" accessibilityState={{ selected }} aria-selected={selected}>
       {!iconAfter && iconEl}
       <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
       {iconAfter && iconEl}
@@ -1042,6 +1108,21 @@ const styles = StyleSheet.create({
   },
   filtersPanel: {
     marginBottom: 10,
+  },
+  savedNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#e7f0f3',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  savedNoticeText: {
+    flex: 1,
+    color: colors.brandDark,
+    fontSize: 12,
+    lineHeight: 17,
   },
   filterRow: {
     flexDirection: 'row',

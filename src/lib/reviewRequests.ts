@@ -1,23 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
+import { deviceId } from './deviceId';
 
 /**
  * "Request a safety review" for a restaurant with no reviewed data
  * (0008_review_requests.sql). One request per device per restaurant; the
  * server only ever sees a hash of this device's random id.
  */
-
-const DEVICE_ID_KEY = 'safe-bites/device-id';
-
-async function deviceId(): Promise<string> {
-  const existing = await AsyncStorage.getItem(DEVICE_ID_KEY);
-  if (existing) return existing;
-  // Only used to stop one device counting twice -- not a security secret.
-  let id = '';
-  for (let i = 0; i < 32; i++) id += Math.floor(Math.random() * 16).toString(16);
-  await AsyncStorage.setItem(DEVICE_ID_KEY, id);
-  return id;
-}
 
 export interface ReviewRequestStatus {
   count: number;

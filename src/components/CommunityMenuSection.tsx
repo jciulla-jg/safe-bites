@@ -268,7 +268,7 @@ export function CommunityMenuSection({
           {ALLERGENS.map((allergen) => (
             <TouchableOpacity
               key={allergen.code}
-              style={[styles.chip, tagAllergen === allergen.code && styles.chipSelected]} accessibilityRole="button" accessibilityState={{ selected: tagAllergen === allergen.code }}
+              style={[styles.chip, tagAllergen === allergen.code && styles.chipSelected]} accessibilityRole="button" accessibilityState={{ selected: tagAllergen === allergen.code }} aria-selected={tagAllergen === allergen.code}
               onPress={() => setTagAllergen(allergen.code)}
             >
               <Text style={[styles.chipText, tagAllergen === allergen.code && styles.chipTextSelected]}>
@@ -284,7 +284,7 @@ export function CommunityMenuSection({
         />
         <StatusPicker value={tagStatus} onChange={setTagStatus} disabled={submitting} />
 
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[styles.addTagButton, (!tagAllergen || !tagStatus) && styles.addTagButtonDisabled]}
           onPress={addPendingTag}
           disabled={!tagAllergen || !tagStatus}
@@ -301,10 +301,10 @@ export function CommunityMenuSection({
       {error && <Text style={styles.errorText}>{error}</Text>}
 
       <View style={styles.formActionRow}>
-        <TouchableOpacity style={styles.cancelButton} onPress={closeForm} disabled={submitting}>
+        <TouchableOpacity accessibilityRole="button" style={styles.cancelButton} onPress={closeForm} disabled={submitting}>
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
           onPress={handleSubmit}
           disabled={submitting}
@@ -330,8 +330,8 @@ export function CommunityMenuSection({
       <Text style={styles.title}>{hasReviewedMenu ? 'Community additions' : 'Community menu items'}</Text>
       <Text style={styles.subtitle}>
         {hasReviewedMenu
-          ? "Something on the menu that isn't listed above? Add it -- diner-submitted, not verified by Safe Bites, and kept separate from the reviewed menu."
-          : "Know what's on the menu here? Add it -- diner-submitted, not verified by Safe Bites."}
+          ? "Something on the menu that isn't listed above? Add it — diner-submitted, not verified by Safe Bites, and kept separate from the reviewed menu."
+          : "Know what's on the menu here? Add it — diner-submitted, not verified by Safe Bites."}
       </Text>
 
       {loading ? (
@@ -370,10 +370,10 @@ export function CommunityMenuSection({
                     (confirmingDeleteId === item.id ? (
                       <View style={styles.rowActions}>
                         <Text style={styles.confirmText}>Delete this item?</Text>
-                        <TouchableOpacity onPress={() => setConfirmingDeleteId(null)} disabled={deleting}>
+                        <TouchableOpacity accessibilityRole="button" onPress={() => setConfirmingDeleteId(null)} disabled={deleting}>
                           <Text style={styles.secondaryAction}>Keep</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => confirmDelete(item)} disabled={deleting}>
+                        <TouchableOpacity accessibilityRole="button" onPress={() => confirmDelete(item)} disabled={deleting}>
                           {deleting ? (
                             <ActivityIndicator size="small" color={colors.danger} />
                           ) : (
@@ -383,10 +383,10 @@ export function CommunityMenuSection({
                       </View>
                     ) : (
                       <View style={styles.rowActions}>
-                        <TouchableOpacity onPress={() => openForm(item)} disabled={formMode !== null}>
+                        <TouchableOpacity accessibilityRole="button" onPress={() => openForm(item)} disabled={formMode !== null}>
                           <Text style={[styles.primaryAction, formMode !== null && styles.actionDisabled]}>Edit</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity
+                        <TouchableOpacity accessibilityRole="button"
                           onPress={() => {
                             setConfirmingDeleteId(item.id);
                             setRowError(null);
@@ -401,10 +401,10 @@ export function CommunityMenuSection({
                     (confirmingReportId === item.id ? (
                       <View style={styles.rowActions}>
                         <Text style={styles.confirmText}>Report as wrong or inappropriate?</Text>
-                        <TouchableOpacity onPress={() => setConfirmingReportId(null)} disabled={deleting}>
+                        <TouchableOpacity accessibilityRole="button" onPress={() => setConfirmingReportId(null)} disabled={deleting}>
                           <Text style={styles.secondaryAction}>Cancel</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={() => confirmReport(item)} disabled={deleting}>
+                        <TouchableOpacity accessibilityRole="button" onPress={() => confirmReport(item)} disabled={deleting}>
                           {deleting ? (
                             <ActivityIndicator size="small" color={colors.danger} />
                           ) : (

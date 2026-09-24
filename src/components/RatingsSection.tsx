@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { deviceId } from '../lib/deviceId';
 import type { Database } from '../lib/database.types';
 import { colors } from '../navigation/theme';
 
@@ -78,6 +79,10 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  // True when this device had rated before, so the submit replaced that rating.
+  const [updatedExisting, setUpdatedExisting] = useState(false);
+  // Set once this device has rated here this session: the form then edits that rating.
+  const [hasMyRating, setHasMyRating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
@@ -117,12 +122,14 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
     setError(null);
     setSubmitting(true);
 
-    const { error: insertError } = await supabase.from('ratings').insert({
-      osm_id: osmId,
-      restaurant_name: restaurantName,
-      accuracy_rating: accuracyRating,
-      accommodation_rating: accommodationRating,
-      comment: comment.trim() ? comment.trim() : null,
+    // One rating per device per restaurant (0010): rating again replaces it.
+    const { data: existed, error: insertError } = await supabase.rpc('submit_rating', {
+      p_osm_id: osmId,
+      p_restaurant_name: restaurantName,
+      p_accuracy_rating: accuracyRating,
+      p_accommodation_rating: accommodationRating,
+      p_comment: comment.trim(),
+      p_device_id: await deviceId(),
     });
 
     setSubmitting(false);
@@ -133,15 +140,16 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
     }
 
     setSubmitted(true);
+    setUpdatedExisting(existed === true);
+    setHasMyRating(true);
     loadExisting();
     onSubmitted?.();
   };
 
-  const handleRateAgain = () => {
+  // Each device has one rating per restaurant (0010), so "again" means edit:
+  // keep the stars and comment just submitted, ready to change.
+  const handleEditRating = () => {
     setSubmitted(false);
-    setAccuracyRating(null);
-    setAccommodationRating(null);
-    setComment('');
     setError(null);
     setValidationMessage(null);
   };
@@ -156,7 +164,7 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
         ) : existingError ? (
           <Text style={styles.errorText}>{existingError}</Text>
         ) : existingRatings.length === 0 ? (
-          <Text style={styles.summaryText}>No ratings yet -- be the first to rate this restaurant.</Text>
+          <Text style={styles.summaryText}>No ratings yet — be the first to rate this restaurant.</Text>
         ) : (
           <>
             <Text style={styles.summaryText}>
@@ -178,9 +186,11 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
 
       {submitted ? (
         <View style={styles.successBlock}>
-          <Text style={styles.successText}>Thanks for your rating!</Text>
-          <TouchableOpacity onPress={handleRateAgain} style={styles.linkButton}>
-            <Text style={styles.linkButtonText}>Submit another rating</Text>
+          <Text style={styles.successText}>
+            {updatedExisting ? 'Your rating was updated.' : 'Thanks for your rating!'}
+          </Text>
+          <TouchableOpacity accessibilityRole="button" onPress={handleEditRating} style={styles.linkButton}>
+            <Text style={styles.linkButtonText}>Edit your rating</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -213,7 +223,7 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
           {validationMessage ? <Text style={styles.errorText}>{validationMessage}</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             onPress={handleSubmit}
             disabled={!canSubmit}
             style={[styles.submitButton, !canSubmit && styles.submitButtonDisabled]}
@@ -221,7 +231,7 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
             {submitting ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.submitButtonText}>Submit rating</Text>
+              <Text style={styles.submitButtonText}>{hasMyRating ? 'Update rating' : 'Submit rating'}</Text>
             )}
           </TouchableOpacity>
         </>

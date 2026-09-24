@@ -224,7 +224,7 @@ export function RestaurantDetailScreen({ route, navigation }: Props) {
             </View>
           )}
         </View>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.shareIconButton}
           onPress={shareRestaurant}
           accessibilityLabel="Share this restaurant"
@@ -241,6 +241,44 @@ export function RestaurantDetailScreen({ route, navigation }: Props) {
           )}
         </View>
       )}
+
+      {restrictionsOverride && (
+        <View style={styles.overrideBanner}>
+          <Ionicons name="options-outline" size={15} color={colors.brandDark} />
+          <Text style={styles.overrideBannerText}>
+            {restrictionsOverride.length > 0
+              ? `Checking for ${restrictionsOverride
+                  .map((r) => ALLERGENS.find((a) => a.code === r.allergenCode)?.label ?? r.allergenCode)
+                  .join(', ')} (set in Search filters, not your saved profile)`
+              : 'No allergens selected in Search filters, so nothing is being checked'}
+          </Text>
+        </View>
+      )}
+
+      {/* The verdict comes first: in an allergy app it's what people open the page for. */}
+      <View style={styles.verdictBlock}>
+        {loading && <Text style={styles.body}>Loading safety data...</Text>}
+        {!loading && error && <Text style={styles.errorText}>{error}</Text>}
+        {!loading && !error && notFound && (
+          <Text style={styles.body}>
+            No safety data yet for this restaurant. It hasn't been reviewed for allergen/menu
+            safety information yet — check with the restaurant directly if you have a
+            restriction.
+          </Text>
+        )}
+        {!loading && !error && safetyData && (
+          <>
+            <RestaurantSafetyBadge status={computeSafetyStatus(safetyData.menuItems, profile)} />
+            <SafetyExplanation
+              reasons={explainUnsafe(safetyData.menuItems, profile)}
+              hasRestrictions={profile.length > 0}
+              reviewedAt={safetyData.reviewedAt}
+              verification={safetyData.verification}
+              chain={safetyData.chain}
+            />
+          </>
+        )}
+      </View>
 
       <View style={styles.actionRow}>
         {lat !== undefined && lon !== undefined && (
@@ -264,31 +302,9 @@ export function RestaurantDetailScreen({ route, navigation }: Props) {
         descriptionSource={safetyData?.descriptionSource ?? null}
       />
 
-      {restrictionsOverride && (
-        <View style={styles.overrideBanner}>
-          <Ionicons name="options-outline" size={15} color={colors.brandDark} />
-          <Text style={styles.overrideBannerText}>
-            {restrictionsOverride.length > 0
-              ? `Checking for ${restrictionsOverride
-                  .map((r) => ALLERGENS.find((a) => a.code === r.allergenCode)?.label ?? r.allergenCode)
-                  .join(', ')} (set in Search filters, not your saved profile)`
-              : 'No allergens selected in Search filters, so nothing is being checked'}
-          </Text>
-        </View>
-      )}
-
       <View style={styles.section}>
-        {loading && <Text style={styles.body}>Loading safety data...</Text>}
-
-        {!loading && error && <Text style={styles.errorText}>{error}</Text>}
-
         {!loading && !error && notFound && (
           <>
-            <Text style={styles.body}>
-              No safety data yet for this restaurant. It hasn't been reviewed for allergen/menu
-              safety information yet -- check with the restaurant directly if you have a
-              restriction.
-            </Text>
             <ReviewRequestButton osmId={osmId} restaurantName={restaurantName} />
             <CommunityMenuSection osmId={osmId} restaurantName={restaurantName} customKeywords={customKeywords} onItemsChange={setCommunityItems} />
           </>
@@ -296,14 +312,6 @@ export function RestaurantDetailScreen({ route, navigation }: Props) {
 
         {!loading && !error && safetyData && (
           <>
-            <RestaurantSafetyBadge status={computeSafetyStatus(safetyData.menuItems, profile)} />
-            <SafetyExplanation
-              reasons={explainUnsafe(safetyData.menuItems, profile)}
-              hasRestrictions={profile.length > 0}
-              reviewedAt={safetyData.reviewedAt}
-              verification={safetyData.verification}
-              chain={safetyData.chain}
-            />
             <MenuSafetyList
               menuItems={safetyData.menuItems}
               restrictions={profile}
@@ -404,7 +412,7 @@ function AboutCard({
             <AboutRow icon="leaf-outline" label="Dietary options (self-reported)">
               <Text style={styles.aboutValue}>{details.diets.map(dietLabel).join(', ')}</Text>
               <Text style={styles.aboutCaveat}>
-                Tagged on OpenStreetMap by contributors -- not Safe Bites safety data.
+                Tagged on OpenStreetMap by contributors — not Safe Bites safety data.
               </Text>
             </AboutRow>
           )}
@@ -425,7 +433,7 @@ function AboutCard({
         </>
       )}
       {hasAnyDetails(cuisine, details) && (
-        <Text style={styles.aboutSource}>Details from OpenStreetMap -- community-maintained, may be out of date.</Text>
+        <Text style={styles.aboutSource}>Details from OpenStreetMap — community-maintained, may be out of date.</Text>
       )}
     </View>
   );
@@ -606,7 +614,7 @@ function MenuSafetyList({
       <Text style={styles.sectionTitle}>Menu</Text>
       {!hasAnyRestriction && (
         <Text style={styles.hint}>
-          No restrictions set in your profile -- add some in the Profile tab to see per-item
+          No restrictions set in your profile — add some in the Profile tab to see per-item
           safety labels.
         </Text>
       )}
@@ -623,7 +631,7 @@ function MenuSafetyList({
           {MENU_FILTER_OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt.value}
-              style={[styles.menuFilterChip, menuFilter === opt.value && styles.menuFilterChipSelected]} accessibilityRole="button" accessibilityState={{ selected: menuFilter === opt.value }}
+              style={[styles.menuFilterChip, menuFilter === opt.value && styles.menuFilterChipSelected]} accessibilityRole="button" accessibilityState={{ selected: menuFilter === opt.value }} aria-selected={menuFilter === opt.value}
               onPress={() => setMenuFilter(opt.value)}
             >
               <Text
@@ -935,6 +943,9 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
+  },
+  verdictBlock: {
+    marginBottom: 14,
   },
   verification: {
     marginBottom: 8,

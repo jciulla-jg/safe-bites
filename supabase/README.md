@@ -31,7 +31,11 @@ Supabase CLI:
    one chain's official allergen guide covers all its locations, matched by
    the OpenStreetMap `brand:wikidata` tag. Seed with `demo-seed-chains-*.sql`;
    the format is in `chain-seed-format.md`.)
-12. Copy your project's URL and anon/public key (Project Settings > API) into
+12. Paste the contents of `migrations/0010_abuse_limits.sql`, run it. (Reports
+   and ratings count once per device, plus database-side price and length
+   checks. It replaces the old report function and the direct ratings insert
+   rule, so the app must be this version or newer.)
+13. Copy your project's URL and anon/public key (Project Settings > API) into
    a `.env` file at the repo root (see `.env.example`):
 
    ```
