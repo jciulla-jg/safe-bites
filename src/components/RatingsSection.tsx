@@ -10,6 +10,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { deviceId } from '../lib/deviceId';
 import type { Database } from '../lib/database.types';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../navigation/theme';
 
 export const MAX_RATING_COMMENT_LENGTH = 500;
@@ -105,6 +106,8 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
   // section shows it with "Edit your rating" instead of a blank form.
   const [myRating, setMyRating] = useState<MyRating | null>(null);
   const [editing, setEditing] = useState(false);
+  // No rating yet: the form stays behind a "Rate this restaurant" button.
+  const [formOpen, setFormOpen] = useState(false);
   const [justSaved, setJustSaved] = useState<'new' | 'updated' | null>(null);
 
   const [existingRatings, setExistingRatings] = useState<RatingRow[]>([]);
@@ -176,6 +179,7 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
     }
 
     setEditing(false);
+    setFormOpen(false);
     setJustSaved(existed === true ? 'updated' : 'new');
     loadExisting();
     onSubmitted?.();
@@ -192,7 +196,7 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
     setEditing(true);
   };
 
-  const showForm = !loadingExisting && (myRating === null || editing);
+  const showForm = !loadingExisting && (editing || (myRating === null && formOpen));
 
   return (
     <View style={styles.container}>
@@ -246,6 +250,13 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
         </View>
       )}
 
+      {!loadingExisting && myRating === null && !formOpen && (
+        <TouchableOpacity accessibilityRole="button" onPress={() => setFormOpen(true)} style={styles.rateButton}>
+          <Ionicons name="star-outline" size={16} color={colors.brand} />
+          <Text style={styles.rateButtonText}>Rate this restaurant</Text>
+        </TouchableOpacity>
+      )}
+
       {showForm && (
         <>
           {editing && <Text style={styles.editingLabel}>Editing your rating</Text>}
@@ -288,11 +299,18 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
               <Text style={styles.submitButtonText}>{editing ? 'Update rating' : 'Submit rating'}</Text>
             )}
           </TouchableOpacity>
-          {editing && (
-            <TouchableOpacity accessibilityRole="button" onPress={() => setEditing(false)} style={styles.linkButton}>
-              <Text style={styles.linkButtonText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => {
+              setEditing(false);
+              setFormOpen(false);
+              setValidationMessage(null);
+              setError(null);
+            }}
+            style={styles.linkButton}
+          >
+            <Text style={styles.linkButtonText}>Cancel</Text>
+          </TouchableOpacity>
         </>
       )}
     </View>
@@ -313,6 +331,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 8,
+  },
+  rateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.brand,
+    borderRadius: 18,
+  },
+  rateButtonText: {
+    color: colors.brand,
+    fontSize: 14,
+    fontWeight: '600',
   },
   myRatingBlock: {
     backgroundColor: '#eef4f6',

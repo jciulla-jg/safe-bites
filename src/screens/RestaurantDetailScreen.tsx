@@ -37,6 +37,7 @@ import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
 import type { CommunityMenuItem } from '../lib/communityMenu';
 import { itemCountLabel } from '../lib/itemCountLabel';
 import { ReviewRequestButton } from '../components/ReviewRequestButton';
+import { SaveButton, SavedNote } from '../components/SaveRestaurant';
 import { colors } from '../navigation/theme';
 import { getCuisineEmoji } from '../lib/cuisineIcon';
 import type { RestaurantDetails } from '../lib/osm';
@@ -224,6 +225,7 @@ export function RestaurantDetailScreen({ route, navigation }: Props) {
             </View>
           )}
         </View>
+        <SaveButton restaurant={{ osmId, restaurantName, lat, lon, phone, address, cuisine, details }} />
         <TouchableOpacity accessibilityRole="button"
           style={styles.shareIconButton}
           onPress={shareRestaurant}
@@ -232,6 +234,8 @@ export function RestaurantDetailScreen({ route, navigation }: Props) {
           <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
+
+      <SavedNote osmId={osmId} />
 
       {(ratingsSummary || countLabel) && (
         <View style={styles.statsRow}>
@@ -370,10 +374,52 @@ function AboutCard({
   const cuisineList = formatCuisineList(cuisine);
   const services = serviceLabels(details);
   const sourceHost = descriptionSource?.replace(/^https?:\/\/(www\.)?/i, '').split('/')[0];
+  // Collapsed by default to keep the page short: a one-line summary, with the
+  // full details (hours, diets, services, website, sources) one tap away.
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = hasAnyDetails(cuisine, details);
+  const summary = description ?? cuisineList;
+
+  if (!expanded && (description || hasDetails)) {
+    return (
+      <TouchableOpacity
+        style={styles.aboutCard}
+        onPress={() => setExpanded(true)}
+        accessibilityRole="button"
+        aria-expanded={false}
+        accessibilityLabel="About this restaurant. Show more details"
+      >
+        <View style={styles.aboutHeaderRow}>
+          <Text style={styles.aboutTitleInline}>About</Text>
+          <Text style={styles.aboutMore}>More details</Text>
+          <Ionicons name="chevron-down" size={14} color={colors.brand} />
+        </View>
+        {summary && (
+          <Text style={styles.aboutSummary} numberOfLines={2}>
+            {summary}
+          </Text>
+        )}
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <View style={styles.aboutCard}>
-      <Text style={styles.aboutTitle}>About</Text>
+      {description || hasDetails ? (
+        <TouchableOpacity
+          style={styles.aboutHeaderRow}
+          onPress={() => setExpanded(false)}
+          accessibilityRole="button"
+          aria-expanded
+          accessibilityLabel="Hide restaurant details"
+        >
+          <Text style={styles.aboutTitleInline}>About</Text>
+          <Text style={styles.aboutMore}>Less</Text>
+          <Ionicons name="chevron-up" size={14} color={colors.brand} />
+        </TouchableOpacity>
+      ) : (
+        <Text style={styles.aboutTitle}>About</Text>
+      )}
       {description && (
         <View style={styles.aboutDescriptionBlock}>
           <Text style={styles.aboutDescription}>{description}</Text>
@@ -821,6 +867,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textPrimary,
     marginBottom: 6,
+  },
+  aboutHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 6,
+  },
+  aboutTitleInline: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  aboutMore: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.brand,
+  },
+  aboutSummary: {
+    color: colors.textSecondary,
+    fontSize: 14,
+    lineHeight: 20,
   },
   aboutDescriptionBlock: {
     marginBottom: 6,
