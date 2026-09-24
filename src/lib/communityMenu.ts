@@ -54,10 +54,10 @@ export async function fetchCommunityMenuItemsForRestaurants(
   for (const ids of chunk(osmIds)) {
     const { data, error } = await supabase
       .from('community_menu_items')
-      .select('*')
+      .select('id, osm_id, restaurant_name, name, description, price, created_at, updated_at, report_count')
       .in('osm_id', ids)
       .order('created_at', { ascending: false });
-    if (!error && data) items.push(...data);
+    if (!error && data) items.push(...(data as CommunityMenuItemRow[]));
   }
   if (items.length === 0) return result;
 
@@ -90,7 +90,8 @@ export async function fetchCommunityMenuItemsForRestaurants(
   return result;
 }
 
-type CommunityMenuItemRow = Database['public']['Tables']['community_menu_items']['Row'];
+// Everything the app reads; the owner_hash column isn't readable by anon (0011).
+type CommunityMenuItemRow = Omit<Database['public']['Tables']['community_menu_items']['Row'], 'owner_hash'>;
 
 function toItem(row: CommunityMenuItemRow, tags: CommunityMenuItemTag[]): CommunityMenuItem {
   return {

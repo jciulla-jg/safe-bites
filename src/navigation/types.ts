@@ -1,3 +1,4 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { RestaurantDetails } from '../lib/osm';
 import type { RestrictionProfile } from '../lib/profileStorage';
 
@@ -22,6 +23,7 @@ export type SearchStackParamList = {
 };
 
 export type RootTabParamList = {
-  SearchStack: undefined;
+  SearchStack: NavigatorScreenParams<SearchStackParamList> | undefined;
+  Saved: undefined;
   Profile: undefined;
 };

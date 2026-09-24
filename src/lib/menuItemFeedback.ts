@@ -30,7 +30,7 @@ export async function fetchFeedbackForMenuItems(
 
   const { data, error } = await supabase
     .from('menu_item_allergen_feedback')
-    .select('*')
+    .select('id, menu_item_id, allergen_code, status, comment, created_at, updated_at, report_count')
     .in('menu_item_id', menuItemIds)
     .order('created_at', { ascending: false });
 
@@ -53,7 +53,8 @@ export async function fetchFeedbackForMenuItems(
   return byItem;
 }
 
-type FeedbackRow = Database['public']['Tables']['menu_item_allergen_feedback']['Row'];
+// Everything the app reads; the owner_hash column isn't readable by anon (0011).
+type FeedbackRow = Omit<Database['public']['Tables']['menu_item_allergen_feedback']['Row'], 'owner_hash'>;
 
 function toEntry(row: FeedbackRow): MenuItemFeedbackEntry {
   return {

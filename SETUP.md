@@ -31,6 +31,7 @@ is free: no paid APIs and no credit card anywhere.
    | 8 | `supabase/migrations/0008_review_requests.sql` | Review requests, verification badge |
    | 9 | `supabase/migrations/0009_chains.sql` | Chain restaurant data |
    | 10 | `supabase/migrations/0010_abuse_limits.sql` | One report and one rating per device, input checks |
+   | 11 | `supabase/migrations/0011_my_rating_and_hidden_hashes.sql` | "Your rating" on return visits; hides device fingerprints |
 
    Supabase may warn about "destructive operations" on 0005 and 0007. That's
    expected: they replace old access rules, and no data is deleted. The same goes

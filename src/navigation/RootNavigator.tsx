@@ -8,12 +8,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchScreen } from '../screens/SearchScreen';
 import { RestaurantDetailScreen } from '../screens/RestaurantDetailScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
+import { SavedScreen } from '../screens/SavedScreen';
 import type { RootTabParamList, SearchStackParamList } from './types';
 import { colors } from './theme';
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 const SearchStack = createNativeStackNavigator<SearchStackParamList>();
 const ProfileStack = createNativeStackNavigator();
+const SavedStack = createNativeStackNavigator();
 
 const stackHeaderOptions = {
   headerStyle: { backgroundColor: colors.brand },
@@ -54,6 +56,14 @@ function SearchStackNavigator() {
   );
 }
 
+function SavedStackNavigator() {
+  return (
+    <SavedStack.Navigator screenOptions={stackHeaderOptions}>
+      <SavedStack.Screen name="SavedHome" component={SavedScreen} options={{ title: 'Saved Restaurants' }} />
+    </SavedStack.Navigator>
+  );
+}
+
 function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator screenOptions={stackHeaderOptions}>
@@ -63,18 +73,23 @@ function ProfileStackNavigator() {
 }
 
 // Web only: keep the address bar in step with the active tab, so refreshing
-// (or opening a shared link to) /profile lands on Profile. Deliberately
+// (or opening a shared link to) /profile or /saved lands on that tab. Deliberately
 // tab-level only -- a restaurant page's data comes from the search that
 // opened it, so it can't be rebuilt from a URL.
 const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
 // GitHub Pages serves the app under /safe-bites (app.config.js).
 const webBase = isWeb && window.location.pathname.startsWith('/safe-bites') ? '/safe-bites' : '';
-const initialTab: 'Profile' | 'SearchStack' =
-  isWeb && /\/profile\/?$/i.test(window.location.pathname) ? 'Profile' : 'SearchStack';
+const TAB_PATHS: Record<string, string> = { Profile: '/profile', Saved: '/saved' };
+const initialTab: keyof RootTabParamList =
+  (isWeb &&
+    (Object.keys(TAB_PATHS).find((tab) =>
+      new RegExp(`${TAB_PATHS[tab]}/?$`, 'i').test(window.location.pathname)
+    ) as keyof RootTabParamList | undefined)) ||
+  'SearchStack';
 
 function syncUrlToTab(state: { index: number; routes: { name: string }[] } | undefined) {
   if (!isWeb || !state) return;
-  const path = webBase + (state.routes[state.index]?.name === 'Profile' ? '/profile' : '/');
+  const path = webBase + (TAB_PATHS[state.routes[state.index]?.name] ?? '/');
   if (window.location.pathname !== path) window.history.replaceState(null, '', path);
 }
 
@@ -110,6 +125,16 @@ export function RootNavigator() {
             title: 'Search',
             tabBarIcon: ({ color, size, focused }) => (
               <Ionicons name={focused ? 'search' : 'search-outline'} size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Saved"
+          component={SavedStackNavigator}
+          options={{
+            title: 'Saved',
+            tabBarIcon: ({ color, size, focused }) => (
+              <Ionicons name={focused ? 'bookmark' : 'bookmark-outline'} size={size} color={color} />
             ),
           }}
         />
