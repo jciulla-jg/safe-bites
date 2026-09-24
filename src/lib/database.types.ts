@@ -329,6 +329,16 @@ export interface Database {
         Args: { p_target_type: 'feedback' | 'community_item'; p_target_id: string; p_device_id: string };
         Returns: boolean;
       };
+      my_rating: {
+        Args: { p_osm_id: number; p_device_id: string };
+        Returns: {
+          accuracy_rating: number;
+          accommodation_rating: number;
+          comment: string | null;
+          created_at: string;
+          updated_at: string | null;
+        }[];
+      };
       submit_rating: {
         Args: {
           p_osm_id: number;
