@@ -13,6 +13,7 @@ import {
 import { loadOwnedSubmissions, type OwnedSubmissions } from '../lib/ownedSubmissions';
 import { loadReportedIds, reportSubmission } from '../lib/reports';
 import { colors } from '../navigation/theme';
+import { friendlySubmitError } from '../lib/errors';
 import { StatusPicker, StepLabel } from './StatusPicker';
 
 function formatFeedbackDate(iso: string): string {
@@ -84,8 +85,8 @@ export function MenuItemFeedback({
       await reportSubmission('feedback', entry.id);
       setReported((prev) => new Set(prev).add(entry.id));
       setConfirmingReportId(null);
-    } catch {
-      setRowError({ id: entry.id, message: 'Could not report. Please try again.' });
+    } catch (err) {
+      setRowError({ id: entry.id, message: friendlySubmitError(err, 'Could not report. Please try again.') });
     } finally {
       setRowBusyId(null);
     }
@@ -106,8 +107,8 @@ export function MenuItemFeedback({
       setAllergenCode(null);
       setStatus(null);
       setComment('');
-    } catch {
-      setError('Could not submit feedback. Please try again.');
+    } catch (err) {
+      setError(friendlySubmitError(err, 'Could not submit feedback. Please try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -137,8 +138,8 @@ export function MenuItemFeedback({
         )
       );
       setEditingId(null);
-    } catch {
-      setRowError({ id: entry.id, message: 'Could not save changes. Please try again.' });
+    } catch (err) {
+      setRowError({ id: entry.id, message: friendlySubmitError(err, 'Could not save changes. Please try again.') });
     } finally {
       setRowBusyId(null);
     }

@@ -32,6 +32,11 @@ is free: no paid APIs and no credit card anywhere.
    | 9 | `supabase/migrations/0009_chains.sql` | Chain restaurant data |
    | 10 | `supabase/migrations/0010_abuse_limits.sql` | One report and one rating per device, input checks |
    | 11 | `supabase/migrations/0011_my_rating_and_hidden_hashes.sql` | "Your rating" on return visits; hides device fingerprints |
+   | 12 | `supabase/migrations/0012_rate_limits_and_content_filter.sql` | Spam limits, link/blocked-word filter, anonymous-account support |
+
+   Then turn on **Authentication → Sign In / Providers → Allow anonymous
+   sign-ins**. The app quietly gives each phone an anonymous account, with no
+   email and no sign-up screen. If it's off, the app still works on device IDs.
 
    Supabase may warn about "destructive operations" on 0005 and 0007. That's
    expected: they replace old access rules, and no data is deleted. The same goes

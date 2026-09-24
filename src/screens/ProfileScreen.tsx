@@ -19,6 +19,7 @@ import {
   saveCustomRestrictions,
 } from '../lib/customRestrictions';
 import { KeyboardAwareScreen } from '../components/KeyboardAwareScreen';
+import { useNavigation } from '@react-navigation/native';
 import { colors } from '../navigation/theme';
 
 /**
@@ -70,6 +71,7 @@ const SEVERITY_LEVELS: { value: SeverityLevel; label: string; color: string; des
 ];
 
 export function ProfileScreen() {
+  const navigation = useNavigation<{ navigate: (screen: 'About') => void }>();
   const [profile, setProfile] = useState<RestrictionProfile>([]);
   const [loaded, setLoaded] = useState(false);
   const [tagLegendExpanded, setTagLegendExpanded] = useState(false);
@@ -204,6 +206,7 @@ export function ProfileScreen() {
         keyExtractor={(item) => item.code}
         contentContainerStyle={styles.listContent}
         ListFooterComponent={
+          <>
           <View style={[styles.card, styles.customCard]}>
             <Text style={styles.customTitle}>Anything else you avoid?</Text>
             <Text style={styles.customBody}>
@@ -250,6 +253,16 @@ export function ProfileScreen() {
             </View>
             {customError && <Text style={styles.customError}>{customError}</Text>}
           </View>
+          <TouchableOpacity
+            accessibilityRole="button"
+            style={styles.aboutLink}
+            onPress={() => navigation.navigate('About')}
+          >
+            <Ionicons name="information-circle-outline" size={18} color={colors.brand} />
+            <Text style={styles.aboutLinkText}>About & privacy</Text>
+            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
+          </TouchableOpacity>
+          </>
         }
         renderItem={({ item }) => {
           const entry = findEntry(item.code);
@@ -306,6 +319,20 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  aboutLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    marginTop: 4,
+  },
+  aboutLinkText: {
+    flex: 1,
+    color: colors.brand,
+    fontSize: 15,
+    fontWeight: '600',
+  },
   container: {
     flex: 1,
     padding: 16,
