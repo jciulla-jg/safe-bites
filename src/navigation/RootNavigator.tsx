@@ -2,7 +2,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SearchScreen } from '../screens/SearchScreen';
@@ -62,13 +62,30 @@ function ProfileStackNavigator() {
   );
 }
 
+// Web only: keep the address bar in step with the active tab, so refreshing
+// (or opening a shared link to) /profile lands on Profile. Deliberately
+// tab-level only -- a restaurant page's data comes from the search that
+// opened it, so it can't be rebuilt from a URL.
+const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
+// GitHub Pages serves the app under /safe-bites (app.config.js).
+const webBase = isWeb && window.location.pathname.startsWith('/safe-bites') ? '/safe-bites' : '';
+const initialTab: 'Profile' | 'SearchStack' =
+  isWeb && /\/profile\/?$/i.test(window.location.pathname) ? 'Profile' : 'SearchStack';
+
+function syncUrlToTab(state: { index: number; routes: { name: string }[] } | undefined) {
+  if (!isWeb || !state) return;
+  const path = webBase + (state.routes[state.index]?.name === 'Profile' ? '/profile' : '/');
+  if (window.location.pathname !== path) window.history.replaceState(null, '', path);
+}
+
 export function RootNavigator() {
   // Grow the tab bar by the bottom inset so it clears Android's gesture/button
   // bar (and the iPhone home indicator) instead of sitting underneath it.
   const insets = useSafeAreaInsets();
   return (
-    <NavigationContainer>
+    <NavigationContainer onStateChange={syncUrlToTab}>
       <Tab.Navigator
+        initialRouteName={initialTab}
         screenOptions={{
           headerShown: false,
           tabBarHideOnKeyboard: true,

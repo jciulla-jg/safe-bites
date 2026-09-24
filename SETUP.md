@@ -30,9 +30,11 @@ is free: no paid APIs and no credit card anywhere.
    | 7 | `supabase/migrations/0007_reviews_limits_reports.sql` | Reports, review dates, comment limit |
    | 8 | `supabase/migrations/0008_review_requests.sql` | Review requests, verification badge |
    | 9 | `supabase/migrations/0009_chains.sql` | Chain restaurant data |
+   | 10 | `supabase/migrations/0010_abuse_limits.sql` | One report and one rating per device, input checks |
 
    Supabase may warn about "destructive operations" on 0005 and 0007. That's
-   expected: they replace old access rules, and no data is deleted.
+   expected: they replace old access rules, and no data is deleted. The same goes
+   for 0010.
 
 3. Optional demo data, also in the SQL Editor, run after the migrations:
 
@@ -99,6 +101,12 @@ npm run typecheck
 - Restaurant search uses the free public OpenStreetMap servers. If a search
   times out, try again, as they're sometimes busy.
 - The restriction profile stays on each device. There are no accounts.
+- If the map search is down, the app shows your last saved results for that
+  zip code and radius, with a note saying so.
+- `.github/workflows/supabase-keepalive.yml` pings the database every 3 days
+  so the free project never pauses. Add `SUPABASE_URL` and
+  `SUPABASE_ANON_KEY` under **Settings → Secrets and variables → Actions** on
+  GitHub to turn it on.
 
 ## Publishing the web version (GitHub Pages)
 

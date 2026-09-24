@@ -47,7 +47,7 @@ const SEVERITY_LEVELS: { value: SeverityLevel; label: string; color: string; des
     value: 'preference',
     label: 'Preference',
     color: '#7a9e79',
-    description: 'Informational only -- never marks a restaurant or item unsafe.',
+    description: 'Informational only — never marks a restaurant or item unsafe.',
   },
   {
     value: 'intolerance',
@@ -59,13 +59,13 @@ const SEVERITY_LEVELS: { value: SeverityLevel; label: string; color: string; des
     value: 'allergy',
     label: 'Allergy',
     color: '#c1622f',
-    description: 'Only an explicit "Safe" tag counts when picking an item. Other menu items containing it are fine -- you just order something tagged safe.',
+    description: 'Only an explicit "Safe" tag counts when picking an item. Other menu items containing it are fine — you just order something tagged safe.',
   },
   {
     value: 'severe',
     label: 'Severe',
     color: '#b0242f',
-    description: 'Same item rule as Allergy, but the whole restaurant is Unsafe if ANY menu item may contain it -- shared-kitchen cross-contact risk matters for life-threatening reactions.',
+    description: 'Same item rule as Allergy, but the whole restaurant is Unsafe if ANY menu item may contain it — shared-kitchen cross-contact risk matters for life-threatening reactions.',
   },
 ];
 
@@ -166,7 +166,7 @@ export function ProfileScreen() {
       )}
 
       <TouchableOpacity
-        style={styles.tagLegendHeader} accessibilityRole="button" accessibilityState={{ expanded: tagLegendExpanded }}
+        style={styles.tagLegendHeader} accessibilityRole="button" accessibilityState={{ expanded: tagLegendExpanded }} aria-expanded={tagLegendExpanded}
         onPress={() => setTagLegendExpanded((v) => !v)}
       >
         <Text style={styles.tagLegendHeaderText}>What do the menu tags mean?</Text>
@@ -214,7 +214,7 @@ export function ProfileScreen() {
             {customRestrictions.length > 0 && (
               <View style={styles.customChipRow}>
                 {customRestrictions.map((keyword) => (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     key={keyword}
                     style={styles.customChip}
                     onPress={() => removeCustomRestriction(keyword)}
@@ -257,7 +257,7 @@ export function ProfileScreen() {
           const activeSeverity = SEVERITY_LEVELS.find((l) => l.value === entry?.severity);
           return (
             <View style={[styles.card, active && styles.cardActive]}>
-              <TouchableOpacity style={styles.cardHeader} onPress={() => toggleAllergen(item.code)} accessibilityRole="checkbox" accessibilityState={{ checked: active }} accessibilityLabel={item.label}>
+              <TouchableOpacity style={styles.cardHeader} onPress={() => toggleAllergen(item.code)} accessibilityRole="checkbox" accessibilityState={{ checked: active }} aria-checked={active} accessibilityLabel={item.label}>
                 <View
                   style={[
                     styles.checkbox,
@@ -282,7 +282,7 @@ export function ProfileScreen() {
                             styles.severityChip,
                             selected && { backgroundColor: level.color, borderColor: level.color },
                           ]}
-                          onPress={() => setSeverity(item.code, level.value)} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={`${item.label} severity: ${level.label}`}
+                          onPress={() => setSeverity(item.code, level.value)} accessibilityRole="radio" accessibilityState={{ checked: selected }} aria-checked={selected} accessibilityLabel={`${item.label} severity: ${level.label}`}
                         >
                           <Text style={[styles.severityChipLabel, selected && styles.severityChipLabelSelected]}>
                             {level.label}

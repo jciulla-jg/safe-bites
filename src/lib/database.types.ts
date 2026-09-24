@@ -326,7 +326,18 @@ export interface Database {
         Returns: boolean;
       };
       report_submission: {
-        Args: { p_target_type: 'feedback' | 'community_item'; p_target_id: string };
+        Args: { p_target_type: 'feedback' | 'community_item'; p_target_id: string; p_device_id: string };
+        Returns: boolean;
+      };
+      submit_rating: {
+        Args: {
+          p_osm_id: number;
+          p_restaurant_name: string;
+          p_accuracy_rating: number;
+          p_accommodation_rating: number;
+          p_comment: string;
+          p_device_id: string;
+        };
         Returns: boolean;
       };
       request_review: {

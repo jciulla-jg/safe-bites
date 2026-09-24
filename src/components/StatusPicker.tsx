@@ -44,7 +44,7 @@ export function StatusPicker({
             disabled={disabled}
             onPress={() => onChange(status)}
             accessibilityRole="button"
-            accessibilityState={{ selected }}
+            accessibilityState={{ selected }} aria-selected={selected}
             style={[
               styles.segment,
               index > 0 && styles.segmentDivider,
