@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 
@@ -24,7 +25,36 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // NOTE: Database is a hand-authored placeholder (see ./database.types.ts) matching the
 // SQL migrations in supabase/migrations/. Regenerate it with the Supabase CLI
 // (supabase gen types typescript) once a live project exists, if desired.
+// React Native and browsers both define `window`; plain Node does not.
+const inApp = typeof window !== 'undefined';
+
 export const supabase = createClient<Database>(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-anon-key'
+  supabaseAnonKey || 'placeholder-anon-key',
+  {
+    auth: {
+      // Keep the anonymous account across app restarts (web: localStorage).
+      // Off outside an app (the Node unit tests import this file too).
+      storage: AsyncStorage,
+      persistSession: inApp,
+      autoRefreshToken: inApp,
+      detectSessionInUrl: false,
+    },
+  }
 );
+
+/**
+ * Sign this phone in with a Supabase anonymous account (no email, no screen)
+ * so the server can tell diners apart without trusting a device id the phone
+ * makes up (0012 _caller_identity). Best effort: if anonymous sign-ins are
+ * off or rate-limited, the app keeps working with its device id as before.
+ */
+export async function ensureAnonymousSession(): Promise<void> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) return;
+    await supabase.auth.signInAnonymously();
+  } catch {
+    // Not signed in: every call still works as the public role.
+  }
+}

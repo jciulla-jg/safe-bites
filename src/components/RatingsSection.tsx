@@ -12,6 +12,7 @@ import { deviceId } from '../lib/deviceId';
 import type { Database } from '../lib/database.types';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../navigation/theme';
+import { friendlySubmitError } from '../lib/errors';
 
 export const MAX_RATING_COMMENT_LENGTH = 500;
 
@@ -174,7 +175,7 @@ export function RatingsSection({ osmId, restaurantName, onSubmitted }: RatingsSe
     setSubmitting(false);
 
     if (insertError) {
-      setError('Something went wrong submitting your rating. Please try again.');
+      setError(friendlySubmitError(insertError, 'Something went wrong submitting your rating. Please try again.'));
       return;
     }
 

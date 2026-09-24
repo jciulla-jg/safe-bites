@@ -9,6 +9,7 @@ import { SearchScreen } from '../screens/SearchScreen';
 import { RestaurantDetailScreen } from '../screens/RestaurantDetailScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SavedScreen } from '../screens/SavedScreen';
+import { AboutScreen } from '../screens/AboutScreen';
 import type { RootTabParamList, SearchStackParamList } from './types';
 import { colors } from './theme';
 
@@ -68,6 +69,7 @@ function ProfileStackNavigator() {
   return (
     <ProfileStack.Navigator screenOptions={stackHeaderOptions}>
       <ProfileStack.Screen name="ProfileHome" component={ProfileScreen} options={{ title: 'Your Profile' }} />
+      <ProfileStack.Screen name="About" component={AboutScreen} options={{ title: 'About & privacy' }} />
     </ProfileStack.Navigator>
   );
 }

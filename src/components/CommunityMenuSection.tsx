@@ -16,6 +16,7 @@ import {
 import { loadOwnedSubmissions, type OwnedSubmissions } from '../lib/ownedSubmissions';
 import { loadReportedIds, reportSubmission } from '../lib/reports';
 import { colors } from '../navigation/theme';
+import { friendlySubmitError } from '../lib/errors';
 import { StatusPicker, StepLabel } from './StatusPicker';
 import { MentionBadge } from './MentionBadge';
 import { itemMentions } from '../lib/mentions';
@@ -108,8 +109,8 @@ export function CommunityMenuSection({
       await reportSubmission('community_item', item.id);
       setItems((prev) => prev.filter((it) => it.id !== item.id));
       setConfirmingReportId(null);
-    } catch {
-      setRowError({ id: item.id, message: 'Could not report. Please try again.' });
+    } catch (err) {
+      setRowError({ id: item.id, message: friendlySubmitError(err, 'Could not report. Please try again.') });
     } finally {
       setDeletingId(null);
     }
@@ -201,8 +202,13 @@ export function CommunityMenuSection({
         );
       }
       closeForm();
-    } catch {
-      setError(formMode === 'new' ? 'Could not submit this item. Please try again.' : 'Could not save changes. Please try again.');
+    } catch (err) {
+      setError(
+        friendlySubmitError(
+          err,
+          formMode === 'new' ? 'Could not submit this item. Please try again.' : 'Could not save changes. Please try again.'
+        )
+      );
     } finally {
       setSubmitting(false);
     }

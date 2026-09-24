@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { fetchReviewRequestStatus, requestReview } from '../lib/reviewRequests';
 import { colors } from '../navigation/theme';
+import { friendlySubmitError } from '../lib/errors';
 
 const dinersAsked = (count: number) => `${count} diner${count === 1 ? ' has' : 's have'} asked`;
 
@@ -37,8 +38,8 @@ export function ReviewRequestButton({ osmId, restaurantName }: { osmId: number; 
     try {
       setCount(await requestReview(osmId, restaurantName));
       setRequested(true);
-    } catch {
-      setError('Could not send your request. Please try again.');
+    } catch (err) {
+      setError(friendlySubmitError(err, 'Could not send your request. Please try again.'));
     } finally {
       setSending(false);
     }
