@@ -111,8 +111,10 @@ export function RootNavigator() {
           tabBarStyle: {
             borderTopColor: '#ececec',
             paddingTop: 6,
-            paddingBottom: insets.bottom + 4,
-            height: 60 + insets.bottom,
+            // A little taller on the web: desktop fonts and display scaling render
+            // the labels taller than on a phone, and they were being clipped.
+            paddingBottom: insets.bottom + (isWeb ? 8 : 4),
+            height: (isWeb ? 66 : 60) + insets.bottom,
           },
           tabBarLabelStyle: {
             fontSize: 12,

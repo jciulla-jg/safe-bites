@@ -46,6 +46,5 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderColor: colors.border,
     boxShadow: '0 0 24px rgba(8, 47, 59, 0.12)',
-    overflow: 'hidden',
   },
 });
