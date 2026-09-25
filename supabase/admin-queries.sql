@@ -64,3 +64,11 @@ select * from community_menu_item_allergen_tags;
 select * from menu_item_allergen_feedback order by created_at;
 select * from ratings order by created_at;
 select * from review_requests order by created_at;
+
+-- ---------------------------------------------------------------------------
+-- Housekeeping: anonymous accounts (one per phone that opened the app).
+-- Deleting one only means that phone gets a fresh account next time; its
+-- ratings stay, but it will no longer see them as "Your rating".
+-- ---------------------------------------------------------------------------
+select count(*) as anonymous_accounts from auth.users where is_anonymous;
+-- delete from auth.users where is_anonymous and last_sign_in_at < now() - interval '90 days';
