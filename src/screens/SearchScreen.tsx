@@ -151,6 +151,12 @@ export function SearchScreen({ navigation }: Props) {
   const [searchCenter, setSearchCenter] = useState<{ lat: number; lon: number } | null>(null);
   // Set when the live map search failed and saved results are shown instead.
   const [savedResultsAt, setSavedResultsAt] = useState<number | null>(null);
+  // Live results fetched in the background after a fallback. Held here, not
+  // swapped in, so nobody loses their place: they appear when the diner taps Show.
+  const [liveResults, setLiveResults] = useState<ResultRow[] | null>(null);
+  // Bumped on every search, so a background retry for an older search is dropped.
+  const searchGenRef = useRef(0);
+  const retryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [recents, setRecents] = useState<RecentRestaurant[]>([]);
   const [searchMode, setSearchMode] = useState<SearchMode>('nearby');
   const [nameQuery, setNameQuery] = useState('');
@@ -211,7 +217,79 @@ export function SearchScreen({ navigation }: Props) {
   );
 
   /** Core search logic shared by the Search button and pull-to-refresh. */
+  function cancelLiveRetries() {
+    retryTimersRef.current.forEach(clearTimeout);
+    retryTimersRef.current = [];
+  }
+
+  useEffect(() => cancelLiveRetries, []);
+
+  /** Ratings, safety and community data for a set of map results, in batched queries. */
+  async function buildRows(nearby: OsmRestaurant[]): Promise<ResultRow[]> {
+    if (nearby.length === 0) return [];
+    const osmIds = nearby.map((restaurant) => restaurant.osmId);
+    const [ratingsByOsmId, safetyByOsmId, communityByOsmId, reportedIds] = await Promise.all([
+      fetchRatingsSummaries(osmIds),
+      // If the Supabase lookup fails, still show the OSM results -- every row
+      // just reads "no data yet" rather than failing the whole search.
+      fetchSafetyDataForRestaurants(
+        osmIds,
+        new Map(
+          nearby
+            .filter((r) => r.details.brandWikidata)
+            .map((r) => [r.osmId, r.details.brandWikidata as string] as [number, string])
+        )
+      ).catch(() => new Map()),
+      fetchCommunityMenuItemsForRestaurants(osmIds).catch(() => new Map<number, CommunityMenuItem[]>()),
+      loadReportedIds(),
+    ]);
+    return nearby.map((restaurant) => ({
+      restaurant,
+      menuItems: safetyByOsmId.get(restaurant.osmId)?.menuItems,
+      communityItems: communityByOsmId.get(restaurant.osmId)?.filter((item) => !reportedIds.has(item.id)),
+      ratingsSummary: ratingsByOsmId.get(restaurant.osmId),
+    }));
+  }
+
+  /**
+   * After falling back to saved results, keep trying the live map search in
+   * the background (about 15s, 45s, then 90s later). A success is held in
+   * liveResults for the diner to show when they choose. It's dropped if they
+   * start another search in the meantime.
+   */
+  function scheduleLiveRetries(gen: number, lat: number, lon: number, radius: number, cacheKey: string, name: string | null) {
+    cancelLiveRetries();
+    let done = false;
+    for (const delayMs of [15000, 45000, 90000]) {
+      retryTimersRef.current.push(
+        setTimeout(async () => {
+          if (done || searchGenRef.current !== gen) return;
+          try {
+            const found = await searchNearbyRestaurants(lat, lon, milesToMeters(radius));
+            if (done || searchGenRef.current !== gen) return;
+            done = true;
+            saveCachedResults(cacheKey, found).catch(() => {});
+            const rows = await buildRows(name ? found.filter((r) => nameMatches(r.name, name)) : found);
+            if (searchGenRef.current === gen) setLiveResults(rows);
+          } catch {
+            // Still busy: the next attempt (if any) tries again.
+          }
+        }, delayMs)
+      );
+    }
+  }
+
+  function showLiveResults() {
+    if (!liveResults) return;
+    setResults(liveResults);
+    setLiveResults(null);
+    setSavedResultsAt(null);
+  }
+
   async function performSearch(trimmedZip: string, name: string | null): Promise<void> {
+    const gen = ++searchGenRef.current;
+    cancelLiveRetries();
+    setLiveResults(null);
     // Live lookups first; if a free OSM service is down or busy, fall back to
     // this device's saved results for the same zip and radius.
     const isTransient = (err: unknown) => err instanceof OsmError && err.transient;
@@ -238,44 +316,17 @@ export function SearchScreen({ navigation }: Props) {
       if (!cached) throw err;
       found = cached.restaurants;
       setSavedResultsAt(cached.savedAt);
+      scheduleLiveRetries(gen, lat, lon, radiusMiles, cacheKey, name);
     }
     // Name matching happens before the per-restaurant safety lookups below,
     // so a name search only queries Supabase for the matches.
     const nearby = name ? found.filter((restaurant) => nameMatches(restaurant.name, name)) : found;
     setSearchedName(name);
 
-    if (nearby.length === 0) {
-      setResults([]);
-      return;
-    }
-
     // Ratings and safety data are each fetched in batched queries across the
     // whole result set, not one request per restaurant.
-    const osmIds = nearby.map((restaurant) => restaurant.osmId);
-    const [ratingsByOsmId, safetyByOsmId, communityByOsmId, reportedIds] = await Promise.all([
-      fetchRatingsSummaries(osmIds),
-      // If the Supabase lookup fails, still show the OSM results -- every row
-      // just reads "no data yet" rather than failing the whole search.
-      fetchSafetyDataForRestaurants(
-        osmIds,
-        new Map(
-          nearby
-            .filter((r) => r.details.brandWikidata)
-            .map((r) => [r.osmId, r.details.brandWikidata as string] as [number, string])
-        )
-      ).catch(() => new Map()),
-      fetchCommunityMenuItemsForRestaurants(osmIds).catch(() => new Map<number, CommunityMenuItem[]>()),
-      loadReportedIds(),
-    ]);
-
-    setResults(
-      nearby.map((restaurant) => ({
-        restaurant,
-        menuItems: safetyByOsmId.get(restaurant.osmId)?.menuItems,
-        communityItems: communityByOsmId.get(restaurant.osmId)?.filter((item) => !reportedIds.has(item.id)),
-        ratingsSummary: ratingsByOsmId.get(restaurant.osmId),
-      }))
-    );
+    const rows = await buildRows(nearby);
+    if (searchGenRef.current === gen) setResults(rows);
   }
 
   async function handleSearch() {
@@ -696,8 +747,24 @@ export function SearchScreen({ navigation }: Props) {
           <Text style={styles.savedNoticeText}>
             The live map search is busy right now, so these are your saved results from{' '}
             {new Date(savedResultsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-            . Safety data is current. Pull down or tap Search to try again.
+            . Safety data is current.{' '}
+            {liveResults ? '' : "We'll keep checking for live results in the background."}
           </Text>
+        </View>
+      )}
+
+      {!loading && !error && results !== null && liveResults !== null && (
+        <View style={styles.liveReady} accessibilityRole="alert">
+          <Ionicons name="refresh-circle-outline" size={18} color={colors.safe} />
+          <Text style={styles.liveReadyText}>Live results are ready.</Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Show live results"
+            style={styles.liveReadyButton}
+            onPress={showLiveResults}
+          >
+            <Text style={styles.liveReadyButtonText}>Show</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -1108,6 +1175,33 @@ const styles = StyleSheet.create({
   },
   filtersPanel: {
     marginBottom: 10,
+  },
+  liveReady: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#e7f2ec',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+  },
+  liveReadyText: {
+    flex: 1,
+    color: colors.safe,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  liveReadyButton: {
+    backgroundColor: colors.safe,
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+  },
+  liveReadyButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 13,
   },
   savedNotice: {
     flexDirection: 'row',
